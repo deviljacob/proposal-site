@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>For You ❤️ — A Beach Surprise</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { width:100%; height:100%; overflow:hidden; background:#1a0f2e;
+    font-family:'Segoe UI', system-ui, -apple-system, sans-serif; color:#fff; }
+  #scene { position:fixed; inset:0; }
+  canvas { display:block; }
+
+  .overlay { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; z-index:20; text-align:center; padding:20px; }
+  .hidden { display:none !important; }
+
+  /* ---------- Join screen ---------- */
+  #joinScreen { background:linear-gradient(180deg,#2b1055 0%,#7597de 55%,#f7b733 130%); }
+  #joinScreen h1 { font-size:clamp(28px,6vw,52px); margin-bottom:8px; text-shadow:0 3px 14px rgba(0,0,0,.45); }
+  #joinScreen p.sub { font-size:clamp(15px,2.6vw,20px); opacity:.92; margin-bottom:34px; }
+  .roleBtns { display:flex; gap:22px; flex-wrap:wrap; justify-content:center; }
+  .roleBtn { width:170px; padding:20px 12px 16px; border:none; border-radius:20px; cursor:pointer;
+    font-size:20px; font-weight:700; color:#fff; background:rgba(255,255,255,.16);
+    border:2px solid rgba(255,255,255,.55); backdrop-filter:blur(4px); transition:transform .15s, background .15s; }
+  .roleBtn:hover:not(:disabled) { transform:scale(1.06); background:rgba(255,255,255,.3); }
+  .roleBtn .emoji { display:block; font-size:52px; margin-bottom:8px; }
+  .roleBtn:disabled { opacity:.35; cursor:not-allowed; }
+  #joinStatus { margin-top:26px; font-size:15px; min-height:22px; opacity:.95; }
+  #roomInfo { margin-top:6px; font-size:13px; opacity:.75; }
+
+  /* ---------- HUD ---------- */
+  #hud { position:fixed; top:0; left:0; right:0; z-index:10; display:flex; flex-direction:column;
+    align-items:center; pointer-events:none; padding:10px; }
+  #statusBar { background:rgba(20,10,40,.55); border:1px solid rgba(255,255,255,.25);
+    padding:7px 16px; border-radius:999px; font-size:14px; backdrop-filter:blur(4px); }
+  #hint { margin-top:8px; font-size:clamp(15px,3vw,19px); font-weight:600; color:#ffe9a8;
+    text-shadow:0 2px 8px rgba(0,0,0,.7); min-height:26px; }
+
+  /* ---------- Letter overlay ---------- */
+  #letterOverlay { background:rgba(10,5,25,.45); z-index:30; }
+  #letterCard { width:min(88vw,430px); background:linear-gradient(180deg,#fffdf6,#ffefd2);
+    color:#5b3a1e; border-radius:10px; padding:44px 30px 34px; position:relative;
+    box-shadow:0 24px 60px rgba(0,0,0,.55); transform:rotateX(72deg) scale(.6); opacity:0;
+    transition:transform .9s cubic-bezier(.2,.9,.3,1.2), opacity .5s; transform-origin:bottom center;
+    font-family:Georgia,'Times New Roman',serif; }
+  #letterCard.open { transform:rotateX(0deg) scale(1) rotate(-1.2deg); opacity:1; }
+  #letterCard .stamp { position:absolute; top:12px; right:14px; font-size:24px; }
+  #letterCard h2 { font-size:21px; margin-bottom:14px; color:#b3541e; }
+  #letterCard p { font-size:clamp(17px,4.4vw,21px); line-height:1.55; font-style:italic; }
+  #letterClose { position:absolute; top:-16px; right:-16px; width:44px; height:44px; border-radius:50%;
+    border:none; background:#e63950; color:#fff; font-size:21px; font-weight:700; cursor:pointer;
+    box-shadow:0 6px 16px rgba(0,0,0,.4); line-height:1; }
+  #letterClose:hover { background:#c2255c; }
+  #letterHint { margin-top:18px; color:#fff; font-size:14px; text-shadow:0 2px 6px #000; opacity:.9; }
+
+  /* ---------- Question overlay ---------- */
+  #questionOverlay { background:transparent; z-index:30; justify-content:flex-end; padding-bottom:9vh; pointer-events:none; }
+  #questionBox { pointer-events:auto; position:relative; width:min(92vw,520px); height:300px; }
+  #questionBox h2 { font-size:clamp(27px,6.4vw,42px); text-shadow:0 3px 16px rgba(0,0,0,.8);
+    background:rgba(20,10,40,.45); display:inline-block; padding:10px 26px; border-radius:999px; }
+  .qBtn { position:absolute; border:none; cursor:pointer; font-weight:800; border-radius:999px;
+    padding:15px 42px; font-size:21px; box-shadow:0 10px 24px rgba(0,0,0,.45); transition:left .18s, top .18s; }
+  #yesBtn { background:#e63950; color:#fff; left:50%; top:120px; transform:translateX(-118%); }
+  #yesBtn:hover { background:#ff4d6d; }
+  #noBtn { background:#e9e9ef; color:#555; left:50%; top:120px; transform:translateX(18%); }
+
+  /* ---------- Ending overlay ---------- */
+  #endingOverlay { background:#000; z-index:40; opacity:0; pointer-events:none; transition:opacity 2.2s ease; }
+  #endingOverlay.show { opacity:1; pointer-events:auto; }
+  #endingOverlay h1 { font-size:clamp(38px,9vw,72px); letter-spacing:1px; margin-bottom:30px;
+    opacity:0; transition:opacity 1.4s ease .5s; }
+  #endingOverlay.show h1 { opacity:1; }
+  #retryBtn { background:#e63950; color:#fff; border:none; font-size:20px; font-weight:800;
+    padding:14px 46px; border-radius:999px; cursor:pointer; box-shadow:0 10px 26px rgba(230,57,80,.5);
+    opacity:0; transition:opacity 1.2s ease 1.1s; }
+  #endingOverlay.show #retryBtn { opacity:1; }
+  #retryBtn:hover { background:#ff4d6d; }
+
+  /* ---------- Cinematic caption ---------- */
+  #cineCaption { position:fixed; left:0; right:0; bottom:6vh; z-index:15; text-align:center;
+    font-size:clamp(17px,3.6vw,24px); font-weight:600; text-shadow:0 2px 10px #000; pointer-events:none; }
+
+  /* ---------- Joystick ---------- */
+  #joystick { position:fixed; left:22px; bottom:26px; width:128px; height:128px; border-radius:50%;
+    background:rgba(255,255,255,.13); border:2px solid rgba(255,255,255,.35); z-index:12; touch-action:none; }
+  #stick { position:absolute; left:50%; top:50%; width:56px; height:56px; border-radius:50%;
+    background:rgba(255,255,255,.55); transform:translate(-50%,-50%); }
+  @media (pointer:fine) { #joystick { opacity:.55; } }
+</style>
+</head>
+<body>
+<div id="scene"></div>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div id="statusBar">Connecting…</div>
+  <div id="hint"></div>
+</div>
+<div id="cineCaption" class="hidden"></div>
+
+<!-- Join screen -->
+<div id="joinScreen" class="overlay">
+  <h1>🌅 A Little Surprise Awaits…</h1>
+  <p class="sub">Boy or Girl?</p>
+  <div class="roleBtns">
+    <button class="roleBtn" id="boyBtn"><span class="emoji">🤵</span>Boy</button>
+    <button class="roleBtn" id="girlBtn"><span class="emoji">👰</span>Girl</button>
+  </div>
+  <div id="joinStatus">Pick who you are to enter the beach.</div>
+  <div id="roomInfo"></div>
+</div>
+
+<!-- Letter -->
+<div id="letterOverlay" class="overlay hidden">
+  <div id="letterCard">
+    <div class="stamp">💌</div>
+    <button id="letterClose" title="Close">✕</button>
+    <h2>A letter for you…</h2>
+    <p id="letterText">Meeku Thank you for accepting my invitation, Follow me please.</p>
+  </div>
+  <div id="letterHint"></div>
+</div>
+
+<!-- Proposal question (girl only) -->
+<div id="questionOverlay" class="overlay hidden">
+  <div id="questionBox">
+    <h2>Will you marry me ?</h2>
+    <button class="qBtn" id="yesBtn">Yes 💍</button>
+    <button class="qBtn" id="noBtn">No</button>
+  </div>
+</div>
+
+<!-- Ending -->
+<div id="endingOverlay" class="overlay">
+  <h1>I love You</h1>
+  <button id="retryBtn">Retry</button>
+</div>
+
+<!-- Joystick -->
+<div id="joystick" class="hidden"><div id="stick"></div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
+<script>
+'use strict';
+/* ============================================================
+   Live Proposal — client
+   Flow: join(boy/girl) → free walk → letter cinematic (reception,
+   proximity) → free walk → plane cinematic (both at water) →
+   proposal pose + question (girl) → Yes → hug → "I love You" →
+   Retry resets both.
+   ============================================================ */
+
+// ---------- Config ----------
+const LETTER_TEXT = 'Meeku Thank you for accepting my invitation, Follow me please.';
+const BANNER_TEXT = 'will you marry me Malaika ?';
+const SAND_TEXT = '❤️ Usman and Malaika';
+const SPAWNS = { boy: { x: -0.6, z: 15.2, ry: 0 }, girl: { x: 5.5, z: 21.5, ry: Math.PI * 0.85 } };
+const RECEPTION_POS = { x: 0, z: 17 };
+const WATER_Z = -17;              // both must be at z <= WATER_Z for the plane scene
+const LETTER_DIST = 2.3;          // girl-this close to boy triggers the letter
+const PLANE_SPOTS = { boy: { x: -1.0, z: -19.5 }, girl: { x: 1.0, z: -19.5 } };
+const PROPOSAL_SPOTS = { boy: { x: -0.85, z: -19.5 }, girl: { x: 0.85, z: -19.5 } };
+
+// ---------- URL / room ----------
+const params = new URLSearchParams(location.search);
+const ROOM = params.get('room') || 'usman-malaika';
+document.getElementById('roomInfo').textContent = 'Room: ' + ROOM + ' — share this exact link with your partner.';
+
+// ---------- State ----------
+let myRole = null;
+let phase = 'join'; // join | free1 | letter | free2 | plane | proposal | hug | ended
+let rolesTaken = { boy: false, girl: false };
+let cineLock = false;
+let letterTriggered = false;
+let planeTriggered = false;
+let partnerPresent = false;
+
+// ---------- Networking ----------
+let ws = null;
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(proto + '//' + location.host);
+  ws.onopen = () => { if (myRole) send({ type: 'join', room: ROOM, role: myRole }); };
+  ws.onmessage = (ev) => {
+    let msg; try { msg = JSON.parse(ev.data); } catch (e) { return; }
+    handleMsg(msg);
+  };
+  ws.onclose = () => setTimeout(connect, 2000);
+}
+function send(obj) { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj)); }
+function sendEvent(name) { send({ type: 'event', name }); }
+
+function handleMsg(msg) {
+  if (msg.type === 'roles') {
+    rolesTaken = { boy: msg.boy, girl: msg.girl };
+    partnerPresent = myRole ? rolesTaken[myRole === 'boy' ? 'girl' : 'boy'] : false;
+    refreshJoinButtons(); refreshStatus();
+  } else if (msg.type === 'role_ok') {
+    myRole = msg.role;
+    document.getElementById('joinScreen').classList.add('hidden');
+    document.getElementById('hud').classList.remove('hidden');
+    document.getElementById('joystick').classList.remove('hidden');
+    phase = 'free1';
+    setHint(myRole === 'girl' ? 'Walk to the boy waiting at the reception 💌' : 'Wait at the reception for her…');
+    refreshStatus();
+  } else if (msg.type === 'role_taken') {
+    document.getElementById('joinStatus').textContent = 'That role is already taken in this room.';
+  } else if (msg.type === 'pos') {
+    const ch = msg.role === 'boy' ? boy : girl;
+    if (ch && msg.role !== myRole) {
+      ch.target.x = msg.x; ch.target.z = msg.z; ch.target.ry = msg.ry; ch.moving = msg.moving;
+    }
+  } else if (msg.type === 'peer_left') {
+    partnerPresent = false; refreshStatus();
+  } else if (msg.type === 'event') {
+    onPhaseEvent(msg.name, msg.from);
+  }
+}
+
+function refreshJoinButtons() {
+  document.getElementById('boyBtn').disabled = rolesTaken.boy;
+  document.getElementById('girlBtn').disabled = rolesTaken.girl;
+}
+function refreshStatus() {
+  const el = document.getElementById('statusBar');
+  if (!myRole) { el.textContent = 'Connecting…'; return; }
+  const me = myRole === 'boy' ? 'Usman 🤵' : 'Malaika 👰';
+  el.textContent = 'You are ' + me + (partnerPresent ? ' • Partner is here ❤️' : ' • Waiting for partner to join…');
+}
+function setHint(t) { document.getElementById('hint').textContent = t || ''; }
+function setCaption(t) {
+  const c = document.getElementById('cineCaption');
+  c.textContent = t || ''; c.classList.toggle('hidden', !t);
+}
+</script>
+<script>
+/* ================= Three.js scene ================= */
+const container = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+container.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0xf7a56b, 55, 160);
+
+// Sunset sky (screen-space gradient)
+(function () {
+  const c = document.createElement('canvas'); c.width = 16; c.height = 512;
+  const g = c.getContext('2d');
+  const grad = g.createLinearGradient(0, 0, 0, 512);
+  grad.addColorStop(0.0, '#2b1055');
+  grad.addColorStop(0.35, '#7b2d8b');
+  grad.addColorStop(0.62, '#e65c7a');
+  grad.addColorStop(0.8, '#f7a56b');
+  grad.addColorStop(1.0, '#ffd98e');
+  g.fillStyle = grad; g.fillRect(0, 0, 16, 512);
+  scene.background = new THREE.CanvasTexture(c);
+})();
+
+const camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, 400);
+camera.position.set(0, 3, 30);
+
+const hemi = new THREE.HemisphereLight(0xffd9a0, 0x7a5230, 0.85);
+scene.add(hemi);
+const sunLight = new THREE.DirectionalLight(0xffb066, 1.0);
+sunLight.position.set(-12, 16, -40);
+scene.add(sunLight);
+
+// Sun disc low over the ocean
+(function () {
+  const sun = new THREE.Mesh(new THREE.CircleGeometry(6, 40),
+    new THREE.MeshBasicMaterial({ color: 0xffdf8a, fog: false }));
+  sun.position.set(-14, 6.5, -95); scene.add(sun);
+  const glow = new THREE.Mesh(new THREE.CircleGeometry(11, 40),
+    new THREE.MeshBasicMaterial({ color: 0xff9d5c, transparent: true, opacity: 0.35, fog: false }));
+  glow.position.set(-14, 6.5, -96); scene.add(glow);
+})();
+
+function canvasTexture(w, h, draw) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.anisotropy = 4;
+  return t;
+}
+
+// Sand
+const sandTex = canvasTexture(256, 256, (g, w, h) => {
+  g.fillStyle = '#e8c07a'; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 2600; i++) {
+    g.fillStyle = Math.random() > 0.5 ? 'rgba(190,150,85,0.25)' : 'rgba(255,240,200,0.25)';
+    g.fillRect(Math.random() * w, Math.random() * h, 2, 2);
+  }
+});
+sandTex.wrapS = sandTex.wrapT = THREE.RepeatWrapping; sandTex.repeat.set(24, 10);
+const sand = new THREE.Mesh(new THREE.PlaneGeometry(300, 64),
+  new THREE.MeshLambertMaterial({ map: sandTex }));
+sand.rotation.x = -Math.PI / 2; sand.position.set(0, 0, 2);
+scene.add(sand);
+
+// Ocean
+const oceanTex = canvasTexture(256, 256, (g, w, h) => {
+  g.fillStyle = '#2e6f9e'; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 130; i++) {
+    g.fillStyle = 'rgba(255,255,255,' + (0.04 + Math.random() * 0.1) + ')';
+    const y = Math.random() * h;
+    g.fillRect(Math.random() * w * 0.6, y, 30 + Math.random() * 90, 2);
+  }
+});
+oceanTex.wrapS = oceanTex.wrapT = THREE.RepeatWrapping; oceanTex.repeat.set(10, 3);
+const ocean = new THREE.Mesh(new THREE.PlaneGeometry(300, 68),
+  new THREE.MeshPhongMaterial({ map: oceanTex, shininess: 90, specular: 0xddaa66 }));
+ocean.rotation.x = -Math.PI / 2; ocean.position.set(0, 0.05, -58);
+scene.add(ocean);
+// Foam shoreline
+const foam = new THREE.Mesh(new THREE.PlaneGeometry(300, 1.6),
+  new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 }));
+foam.rotation.x = -Math.PI / 2; foam.position.set(0, 0.07, -24.2);
+scene.add(foam);
+
+// Names written on the sand (right behind the reception, on the way to the water)
+(function () {
+  const tex = canvasTexture(1024, 256, (g, w, h) => {
+    g.clearRect(0, 0, w, h);
+    g.font = 'bold 104px Georgia, serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = 'rgba(146,104,44,0.92)';
+    g.fillText(SAND_TEXT, w / 2, h / 2 + 8);
+    g.strokeStyle = 'rgba(120,84,34,0.55)'; g.lineWidth = 3;
+    g.strokeText(SAND_TEXT, w / 2, h / 2 + 8);
+  });
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(11, 2.75),
+    new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
+  m.rotation.x = -Math.PI / 2;
+  m.position.set(0, 0.04, 8.5);
+  scene.add(m);
+})();
+
+// Reception: desk + arch + sign
+(function () {
+  const grp = new THREE.Group();
+  const wood = new THREE.MeshLambertMaterial({ color: 0x8a5a33 });
+  const woodDark = new THREE.MeshLambertMaterial({ color: 0x6f4525 });
+  const desk = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.95, 0.7), wood);
+  desk.position.set(0, 0.48, 0); grp.add(desk);
+  const deskTop = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.09, 0.9), woodDark);
+  deskTop.position.set(0, 1.0, 0); grp.add(deskTop);
+  [-1.9, 1.9].forEach((x) => {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3.4, 0.2), woodDark);
+    post.position.set(x, 1.7, 0); grp.add(post);
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.17, 10, 10),
+      new THREE.MeshLambertMaterial({ color: 0xff6b9d }));
+    ball.position.set(x, 3.55, 0); grp.add(ball);
+  });
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.24, 0.3), woodDark);
+  beam.position.set(0, 3.35, 0); grp.add(beam);
+  const signTex = canvasTexture(512, 128, (g, w, h) => {
+    g.fillStyle = '#fff6e8'; g.fillRect(0, 0, w, h);
+    g.font = 'bold 62px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = '#b3541e'; g.fillText('❤ Reception', w / 2, h / 2 + 4);
+  });
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 0.62),
+    new THREE.MeshBasicMaterial({ map: signTex }));
+  sign.position.set(0, 2.75, 0.18); grp.add(sign);
+  // flowers on the desk
+  [0xff6b9d, 0xffffff, 0xffd166].forEach((col, i) => {
+    const f = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 8),
+      new THREE.MeshLambertMaterial({ color: col }));
+    f.position.set(-0.7 + i * 0.7, 1.15, 0.2); grp.add(f);
+  });
+  grp.position.set(RECEPTION_POS.x, 0, RECEPTION_POS.z);
+  scene.add(grp);
+})();
+
+// Palms + rocks
+(function () {
+  const trunkMat = new THREE.MeshLambertMaterial({ color: 0x7a4f2a });
+  const leafMat = new THREE.MeshLambertMaterial({ color: 0x2e8b57, side: THREE.DoubleSide });
+  function palm(x, z, s, lean) {
+    const g = new THREE.Group();
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.22, 4.4, 7), trunkMat);
+    trunk.position.y = 2.2; trunk.rotation.z = lean; g.add(trunk);
+    const topX = Math.sin(lean) * -2.1;
+    for (let i = 0; i < 6; i++) {
+      const leaf = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 2.4), leafMat);
+      const a = (i / 6) * Math.PI * 2;
+      leaf.position.set(topX + Math.cos(a) * 0.9, 4.5, Math.sin(a) * 0.9);
+      leaf.rotation.set(Math.PI / 3.2, a, 0, 'YXZ');
+      g.add(leaf);
+    }
+    g.position.set(x, 0, z); g.scale.setScalar(s);
+    scene.add(g);
+  }
+  palm(-9, 12, 1.1, 0.14); palm(10.5, 6, 0.95, -0.1); palm(-12, -6, 1.2, 0.08);
+  palm(13, -12, 1.0, -0.16); palm(-7.5, -14, 0.85, 0.12);
+  const rockMat = new THREE.MeshLambertMaterial({ color: 0x8d8d99 });
+  [[-5, -20, 0.8], [6.5, -21.5, 0.55], [11, 16, 0.7], [-11, 20, 0.6]].forEach(([x, z, s]) => {
+    const r = new THREE.Mesh(new THREE.DodecahedronGeometry(s), rockMat);
+    r.position.set(x, s * 0.5, z); r.rotation.set(x, z, 1);
+    scene.add(r);
+  });
+})();
+
+/* ---------- Characters (primitive-built) ---------- */
+function makeCharacter(palette) {
+  const mat = (c) => new THREE.MeshLambertMaterial({ color: c });
+  const root = new THREE.Group();
+  const upper = new THREE.Group(); upper.position.y = 0.96; root.add(upper);
+
+  function leg(side, bottomColor) {
+    const hip = new THREE.Group(); hip.position.set(0.13 * side, 0.96, 0); root.add(hip);
+    const thigh = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.5, 0.19), mat(bottomColor));
+    thigh.position.y = -0.25; hip.add(thigh);
+    const knee = new THREE.Group(); knee.position.y = -0.5; hip.add(knee);
+    const shin = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.46, 0.16), mat(bottomColor));
+    shin.position.y = -0.23; knee.add(shin);
+    const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.09, 0.28), mat(0x26221f));
+    shoe.position.set(0, -0.44, 0.05); knee.add(shoe);
+    return { hip, knee };
+  }
+  function arm(side, color) {
+    const sh = new THREE.Group(); sh.position.set(0.31 * side, 0.47, 0); upper.add(sh);
+    const a = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.6, 0.12), mat(color));
+    a.position.y = -0.28; sh.add(a);
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 8), mat(palette.skin));
+    hand.position.y = -0.6; sh.add(hand);
+    return sh;
+  }
+
+  const legL = leg(-1, palette.bottom), legR = leg(1, palette.bottom);
+  // torso
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.58, 0.3), mat(palette.top));
+  torso.position.y = 0.27; upper.add(torso);
+  if (palette.shirt) { // white shirt front for the boy's suit
+    const shirt = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.5, 0.02), mat(0xffffff));
+    shirt.position.set(0, 0.27, 0.16); upper.add(shirt);
+  }
+  if (palette.dress) { // flared dress skirt for the girl
+    const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.5, 0.78, 12), mat(palette.top));
+    skirt.position.y = -0.28; upper.add(skirt);
+  }
+  const armL = arm(-1, palette.arm), armR = arm(1, palette.arm);
+  // head + hair (head group tilts for look-up pose)
+  const headG = new THREE.Group(); headG.position.y = 0.58; upper.add(headG);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.21, 18, 14), mat(palette.skin));
+  head.position.y = 0.17; headG.add(head);
+  const hairTop = new THREE.Mesh(new THREE.SphereGeometry(0.225, 18, 12), mat(palette.hair));
+  hairTop.position.set(0, 0.23, -0.03); hairTop.scale.set(1, 0.82, 1); headG.add(hairTop);
+  if (palette.longHair) {
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.66, 0.1), mat(palette.hair));
+    back.position.set(0, -0.08, -0.17); headG.add(back);
+  }
+  scene.add(root);
+  return {
+    root, upper, headG, legL, legR, armL, armR,
+    target: { x: 0, z: 0, ry: 0 }, moving: false, walkPhase: Math.random() * 6,
+    pose: 'stand',
+  };
+}
+
+const boy = makeCharacter({ skin: 0xf2c09a, hair: 0x2b1c12, top: 0x1d2f57, bottom: 0x1d2f57, arm: 0x1d2f57, shirt: true });
+const girl = makeCharacter({ skin: 0xf6c9a8, hair: 0x201410, top: 0xd81b74, bottom: 0xd81b74, arm: 0xf6c9a8, dress: true, longHair: true });
+
+function placeAtSpawn(ch, role) {
+  const s = SPAWNS[role];
+  ch.root.position.set(s.x, 0, s.z);
+  ch.root.rotation.y = s.ry;
+  ch.target.x = s.x; ch.target.z = s.z; ch.target.ry = s.ry;
+}
+placeAtSpawn(boy, 'boy'); placeAtSpawn(girl, 'girl');
+
+function setPose(ch, pose) {
+  ch.pose = pose;
+  const lerpBack = (o, p, v) => { o[p] = v; };
+  if (pose === 'stand') {
+    ch.upper.position.y = 0.96; ch.upper.position.z = 0;
+    ch.legL.hip.rotation.set(0, 0, 0); ch.legL.knee.rotation.set(0, 0, 0);
+    ch.legR.hip.rotation.set(0, 0, 0); ch.legR.knee.rotation.set(0, 0, 0);
+    ch.armL.rotation.set(0, 0, 0.08); ch.armR.rotation.set(0, 0, -0.08);
+    ch.headG.rotation.set(0, 0, 0);
+  } else if (pose === 'kneel') { // proposal pose: one knee on the ground
+    ch.upper.position.y = 0.58; ch.upper.position.z = 0.05;
+    ch.legL.hip.rotation.set(-1.5, 0, 0); ch.legL.knee.rotation.set(1.5, 0, 0);   // front leg, foot planted
+    ch.legR.hip.rotation.set(0.35, 0, 0); ch.legR.knee.rotation.set(2.15, 0, 0);  // back leg folded, knee down
+    ch.armL.rotation.set(-0.5, 0, 0.15); ch.armR.rotation.set(-0.5, 0, -0.15);    // hands forward, offering
+    ch.headG.rotation.set(-0.18, 0, 0);                                            // looking up at her
+  } else if (pose === 'lookup') {
+    ch.headG.rotation.set(-0.55, 0, 0);
+    ch.armL.rotation.set(0, 0, 0.08); ch.armR.rotation.set(0, 0, -0.08);
+  } else if (pose === 'hug') {
+    ch.armL.rotation.set(-2.0, 0, 0.35); ch.armR.rotation.set(-2.0, 0, -0.35);
+    ch.headG.rotation.set(0.12, 0, 0);
+  }
+  lerpBack(ch, 'pose', pose);
+}
+setPose(boy, 'stand'); setPose(girl, 'stand');
+
+// Letter prop in the boy's hand (visible during the letter cinematic)
+const letterProp = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.25, 0.03),
+  new THREE.MeshLambertMaterial({ color: 0xfffaf0 }));
+letterProp.position.set(0, -0.62, 0.12);
+letterProp.visible = false;
+boy.armR.add(letterProp);
+
+/* ---------- Aeroplane + banner ---------- */
+const planeGrp = new THREE.Group();
+(function () {
+  const white = new THREE.MeshLambertMaterial({ color: 0xf4f6f8 });
+  const red = new THREE.MeshLambertMaterial({ color: 0xe63950 });
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 3.0, 12), white);
+  body.rotation.z = Math.PI / 2; planeGrp.add(body);
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 10), red);
+  nose.position.x = 1.5; planeGrp.add(nose);
+  const wing = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.06, 2.6), red);
+  wing.position.set(0.1, -0.05, 0); planeGrp.add(wing);
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.08), red);
+  tail.position.set(-1.45, 0.3, 0); planeGrp.add(tail);
+  // tow ropes
+  const ropeMat = new THREE.MeshBasicMaterial({ color: 0x333333 });
+  [-0.5, 0.5].forEach((z) => {
+    const rope = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.03, 0.03), ropeMat);
+    rope.position.set(-3.2, -0.1, z * 0.4); rope.rotation.z = z > 0 ? 0.1 : -0.1;
+    planeGrp.add(rope);
+  });
+  const bannerTex = canvasTexture(2048, 220, (g, w, h) => {
+    g.fillStyle = '#fffdf6'; g.fillRect(0, 0, w, h);
+    g.strokeStyle = '#e63950'; g.lineWidth = 14; g.strokeRect(10, 10, w - 20, h - 20);
+    g.font = 'bold 118px Georgia, serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = '#c21847';
+    g.fillText(BANNER_TEXT, w / 2, h / 2 + 6);
+  });
+  const banner = new THREE.Mesh(new THREE.PlaneGeometry(13, 1.4),
+    new THREE.MeshBasicMaterial({ map: bannerTex, side: THREE.DoubleSide }));
+  banner.position.set(-11.5, -0.15, 0);
+  banner.name = 'banner';
+  planeGrp.add(banner);
+  planeGrp.position.set(-70, 15, -46);
+  planeGrp.visible = false;
+  scene.add(planeGrp);
+})();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+<script>
+/* ================= Input ================= */
+const keys = {};
+window.addEventListener('keydown', (e) => { keys[e.code] = true; });
+window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+const joyVec = { x: 0, y: 0 };
+(function () {
+  const joyEl = document.getElementById('joystick');
+  const stick = document.getElementById('stick');
+  let pid = null;
+  function setStick(dx, dy) {
+    stick.style.transform = 'translate(calc(-50% + ' + dx + 'px), calc(-50% + ' + dy + 'px))';
+  }
+  function handle(e) {
+    const r = joyEl.getBoundingClientRect();
+    let dx = e.clientX - (r.left + r.width / 2);
+    let dy = e.clientY - (r.top + r.height / 2);
+    const max = r.width / 2 - 8;
+    const len = Math.hypot(dx, dy);
+    if (len > max) { dx = dx / len * max; dy = dy / len * max; }
+    setStick(dx, dy);
+    joyVec.x = dx / max; joyVec.y = dy / max;
+  }
+  joyEl.addEventListener('pointerdown', (e) => { pid = e.pointerId; joyEl.setPointerCapture(pid); handle(e); });
+  joyEl.addEventListener('pointermove', (e) => { if (e.pointerId === pid) handle(e); });
+  function end(e) { if (e.pointerId === pid) { pid = null; joyVec.x = 0; joyVec.y = 0; setStick(0, 0); } }
+  joyEl.addEventListener('pointerup', end);
+  joyEl.addEventListener('pointercancel', end);
+})();
+
+function inputVector() {
+  let ix = 0, iz = 0;
+  if (keys['KeyW'] || keys['ArrowUp']) iz += 1;
+  if (keys['KeyS'] || keys['ArrowDown']) iz -= 1;
+  if (keys['KeyD'] || keys['ArrowRight']) ix += 1;
+  if (keys['KeyA'] || keys['ArrowLeft']) ix -= 1;
+  ix += joyVec.x; iz += -joyVec.y;
+  const len = Math.hypot(ix, iz);
+  if (len > 1) { ix /= len; iz /= len; }
+  return { ix, iz };
+}
+
+/* ================= Tweens ================= */
+const tweens = [];
+function addTween(dur, update, done) { tweens.push({ t: 0, dur, update, done }); }
+function stepTweens(dt) {
+  for (let i = tweens.length - 1; i >= 0; i--) {
+    const tw = tweens[i];
+    tw.t += dt;
+    const k = Math.min(1, tw.t / tw.dur);
+    tw.update(k * k * (3 - 2 * k));
+    if (k >= 1) { tweens.splice(i, 1); if (tw.done) tw.done(); }
+  }
+}
+function moveCharTo(ch, x, z, ry, dur, done) {
+  const sx = ch.root.position.x, sz = ch.root.position.z, sr = ch.root.rotation.y;
+  let dr = ry - sr;
+  while (dr > Math.PI) dr -= Math.PI * 2;
+  while (dr < -Math.PI) dr += Math.PI * 2;
+  addTween(dur, (k) => {
+    ch.root.position.x = sx + (x - sx) * k;
+    ch.root.position.z = sz + (z - sz) * k;
+    ch.root.rotation.y = sr + dr * k;
+  }, done);
+}
+
+/* ================= Camera ================= */
+let camMode = 'follow'; // 'follow' | 'fixed'
+let cineCamPos = new THREE.Vector3(), cineCamLook = new THREE.Vector3();
+let lookTarget = new THREE.Vector3(0, 1.2, 14);
+function setCineCam(px, py, pz, lx, ly, lz) {
+  camMode = 'fixed';
+  cineCamPos.set(px, py, pz); cineCamLook.set(lx, ly, lz);
+}
+function updateCamera(dt) {
+  const k = 1 - Math.exp(-dt * (camMode === 'fixed' ? 3.2 : 5));
+  if (camMode === 'fixed') {
+    camera.position.lerp(cineCamPos, k);
+    lookTarget.lerp(cineCamLook, k);
+  } else if (myRole) {
+    const me = myRole === 'boy' ? boy : girl;
+    const ry = me.root.rotation.y;
+    const fx = Math.sin(ry), fz = Math.cos(ry);
+    const desired = new THREE.Vector3(
+      me.root.position.x - fx * 6.4, 3.0, me.root.position.z - fz * 6.4);
+    camera.position.lerp(desired, k);
+    lookTarget.lerp(new THREE.Vector3(
+      me.root.position.x + fx * 3, 1.25, me.root.position.z + fz * 3), k);
+  }
+  camera.lookAt(lookTarget);
+}
+
+/* ================= Movement & sync ================= */
+function myChar() { return myRole === 'boy' ? boy : girl; }
+function otherChar() { return myRole === 'boy' ? girl : boy; }
+
+function updateLocal(dt) {
+  const me = myChar(); if (!me) return;
+  const { ix, iz } = inputVector();
+  const moving = Math.hypot(ix, iz) > 0.12;
+  me.moving = moving;
+  if (moving) {
+    const ry = me.root.rotation.y;
+    const fx = Math.sin(ry), fz = Math.cos(ry);
+    const rx = -fz, rz = fx; // right vector
+    let dx = fx * iz + rx * ix;
+    let dz = fz * iz + rz * ix;
+    const dl = Math.hypot(dx, dz); dx /= dl; dz /= dl;
+    const targetRy = Math.atan2(dx, dz);
+    let dr = targetRy - ry;
+    while (dr > Math.PI) dr -= Math.PI * 2;
+    while (dr < -Math.PI) dr += Math.PI * 2;
+    me.root.rotation.y = ry + dr * Math.min(1, dt * 10);
+    const speed = 4.3;
+    me.root.position.x = THREE.MathUtils.clamp(me.root.position.x + dx * speed * dt, -26, 26);
+    me.root.position.z = THREE.MathUtils.clamp(me.root.position.z + dz * speed * dt, -23.5, 30);
+    me.walkPhase += dt * 9;
+  }
+  applyWalk(me, dt);
+}
+
+function applyWalk(ch, dt) {
+  if (ch.pose !== 'stand') return;
+  const target = ch.moving ? 1 : 0;
+  ch._walkAmt = THREE.MathUtils.lerp(ch._walkAmt || 0, target, Math.min(1, dt * 10));
+  const a = ch._walkAmt, s = Math.sin(ch.walkPhase);
+  ch.legL.hip.rotation.x = s * 0.55 * a;
+  ch.legR.hip.rotation.x = -s * 0.55 * a;
+  ch.legL.knee.rotation.x = Math.max(0, -s) * 0.7 * a;
+  ch.legR.knee.rotation.x = Math.max(0, s) * 0.7 * a;
+  ch.armL.rotation.x = -s * 0.4 * a;
+  ch.armR.rotation.x = s * 0.4 * a;
+}
+
+function updateRemote(dt) {
+  const other = otherChar(); if (!other || !myRole) return;
+  if (other.moving) other.walkPhase += dt * 9;
+  if (cineLock) return; // cinematic tweens/poses drive both characters
+  const k = 1 - Math.exp(-dt * 10);
+  other.root.position.x += (other.target.x - other.root.position.x) * k;
+  other.root.position.z += (other.target.z - other.root.position.z) * k;
+  let dr = other.target.ry - other.root.rotation.y;
+  while (dr > Math.PI) dr -= Math.PI * 2;
+  while (dr < -Math.PI) dr += Math.PI * 2;
+  other.root.rotation.y += dr * k;
+  applyWalk(other, dt);
+}
+
+// Position sending (~14 Hz)
+setInterval(() => {
+  if (!myRole || cineLock) return;
+  const me = myChar();
+  send({ type: 'pos', x: +me.root.position.x.toFixed(3), z: +me.root.position.z.toFixed(3),
+    ry: +me.root.rotation.y.toFixed(3), moving: !!me.moving });
+}, 70);
+
+/* ================= Phase machine / cinematics ================= */
+function onPhaseEvent(name, from) {
+  if (name === 'letter_open' && phase === 'free1') startLetterCine();
+  else if (name === 'letter_closed' && phase === 'letter') endLetterCine();
+  else if (name === 'plane_start' && phase === 'free2') startPlaneCine(from === myRole);
+  else if (name === 'proposal' && phase === 'plane') startProposal();
+  else if (name === 'yes' && phase === 'proposal') startHug();
+  else if (name === 'retry') resetAll();
+}
+
+function checkTriggers() {
+  if (!myRole || cineLock || !partnerPresent) return;
+  const bp = boy.root.position, gp = girl.root.position;
+  if (phase === 'free1' && !letterTriggered) {
+    if (Math.hypot(bp.x - gp.x, bp.z - gp.z) < LETTER_DIST) sendEvent('letter_open');
+  } else if (phase === 'free2' && !planeTriggered) {
+    if (bp.z <= WATER_Z && gp.z <= WATER_Z &&
+        Math.abs(bp.x - gp.x) < 4.2 && Math.abs(bp.z - gp.z) < 2.4) {
+      sendEvent('plane_start');
+    }
+  }
+}
+
+function startLetterCine() {
+  phase = 'letter'; cineLock = true; letterTriggered = true;
+  setHint(''); setCaption('A letter for you… 💌');
+  setPose(boy, 'stand'); setPose(girl, 'stand');
+  boy.moving = girl.moving = false;
+  // Face each other
+  const bp = boy.root.position, gp = girl.root.position;
+  boy.root.rotation.y = Math.atan2(gp.x - bp.x, gp.z - bp.z);
+  girl.root.rotation.y = Math.atan2(bp.x - gp.x, bp.z - gp.z);
+  // Far camera shot of the reception moment
+  setCineCam(7.5, 3.6, 27.5, 0, 1.2, 16);
+  // Boy raises the letter toward her
+  letterProp.visible = true;
+  const armStart = boy.armR.rotation.x;
+  addTween(1.0, (k) => { boy.armR.rotation.x = armStart + (-1.25 - armStart) * k; });
+  setTimeout(() => {
+    if (phase !== 'letter') return;
+    document.getElementById('letterOverlay').classList.remove('hidden');
+    requestAnimationFrame(() => document.getElementById('letterCard').classList.add('open'));
+    document.getElementById('letterHint').textContent =
+      myRole === 'girl' ? 'Tap the ✕ to close the letter' : 'She is reading your letter…';
+    setCaption('');
+  }, 1500);
+}
+
+function endLetterCine() {
+  document.getElementById('letterCard').classList.remove('open');
+  document.getElementById('letterOverlay').classList.add('hidden');
+  letterProp.visible = false;
+  boy.armR.rotation.x = 0;
+  camMode = 'follow'; cineLock = false; phase = 'free2';
+  setHint(myRole === 'boy' ? 'Lead her to the water — walk to the beach 🌊' : 'Follow him to the water 💙');
+}
+
+function startPlaneCine(iAmSender) {
+  phase = 'plane'; cineLock = true; planeTriggered = true;
+  setHint(''); setCaption('Look up… ✈️');
+  boy.moving = girl.moving = false;
+  moveCharTo(boy, PLANE_SPOTS.boy.x, PLANE_SPOTS.boy.z, Math.PI, 1.6);
+  moveCharTo(girl, PLANE_SPOTS.girl.x, PLANE_SPOTS.girl.z, Math.PI, 1.6, () => {
+    setPose(boy, 'lookup'); setPose(girl, 'lookup');
+  });
+  // Wide far shot: both characters + the sky in one frame
+  setCineCam(0, 4.6, -5.5, 0, 8.5, -46);
+  const banner = planeGrp.getObjectByName('banner');
+  setTimeout(() => {
+    if (phase !== 'plane') return;
+    planeGrp.visible = true;
+    addTween(9.5, (k) => {
+      planeGrp.position.x = -70 + 150 * k;
+      planeGrp.position.y = 15 + Math.sin(k * Math.PI * 6) * 0.25;
+      if (banner) banner.rotation.z = Math.sin(k * 40) * 0.045;
+    }, () => {
+      planeGrp.visible = false;
+      if (iAmSender) sendEvent('proposal');
+    });
+  }, 1700);
+}
+
+function startProposal() {
+  phase = 'proposal';
+  setCaption('');
+  setPose(boy, 'stand'); setPose(girl, 'stand'); // clear look-up
+  moveCharTo(boy, PROPOSAL_SPOTS.boy.x, PROPOSAL_SPOTS.boy.z, Math.PI / 2, 1.1, () => setPose(boy, 'kneel'));
+  moveCharTo(girl, PROPOSAL_SPOTS.girl.x, PROPOSAL_SPOTS.girl.z, -Math.PI / 2, 1.1);
+  setCineCam(0, 2.1, -11.5, 0, 1.0, -19.5);
+  if (myRole === 'girl') {
+    setTimeout(() => {
+      if (phase === 'proposal') document.getElementById('questionOverlay').classList.remove('hidden');
+    }, 1200);
+  } else {
+    setCaption('This is the moment… 💍');
+  }
+}
+
+function startHug() {
+  phase = 'hug';
+  document.getElementById('questionOverlay').classList.add('hidden');
+  setCaption('');
+  moveCharTo(boy, -0.48, -19.5, Math.PI / 2, 1.2);
+  moveCharTo(girl, 0.48, -19.5, -Math.PI / 2, 1.2, () => {
+    setPose(boy, 'hug'); setPose(girl, 'hug');
+    // gentle happy bounce
+    let bounces = 0;
+    const iv = setInterval(() => {
+      boy.root.position.y = boy.root.position.y === 0 ? 0.09 : 0;
+      girl.root.position.y = boy.root.position.y;
+      if (++bounces > 7) { clearInterval(iv); boy.root.position.y = 0; girl.root.position.y = 0; }
+    }, 160);
+  });
+  setCineCam(0, 1.9, -13.5, 0, 1.1, -19.5);
+  setTimeout(() => {
+    if (phase !== 'hug') return;
+    phase = 'ended';
+    document.getElementById('endingOverlay').classList.add('show');
+  }, 3400);
+}
+
+function resetAll() {
+  phase = 'free1'; cineLock = false;
+  letterTriggered = false; planeTriggered = false;
+  tweens.length = 0;
+  document.getElementById('letterOverlay').classList.add('hidden');
+  document.getElementById('letterCard').classList.remove('open');
+  document.getElementById('questionOverlay').classList.add('hidden');
+  document.getElementById('endingOverlay').classList.remove('show');
+  letterProp.visible = false; planeGrp.visible = false;
+  setPose(boy, 'stand'); setPose(girl, 'stand');
+  boy.root.position.y = 0; girl.root.position.y = 0;
+  placeAtSpawn(boy, 'boy'); placeAtSpawn(girl, 'girl');
+  boy.moving = girl.moving = false;
+  camMode = 'follow';
+  setCaption('');
+  setHint(myRole === 'girl' ? 'Walk to the boy waiting at the reception 💌' : 'Wait at the reception for her…');
+}
+
+/* ================= UI wiring ================= */
+document.getElementById('boyBtn').addEventListener('click', () => send({ type: 'join', room: ROOM, role: 'boy' }));
+document.getElementById('girlBtn').addEventListener('click', () => send({ type: 'join', room: ROOM, role: 'girl' }));
+document.getElementById('letterClose').addEventListener('click', () => {
+  if (phase === 'letter') sendEvent('letter_closed');
+});
+document.getElementById('yesBtn').addEventListener('click', () => {
+  if (phase === 'proposal' && myRole === 'girl') sendEvent('yes');
+});
+document.getElementById('retryBtn').addEventListener('click', () => {
+  if (phase === 'ended') sendEvent('retry');
+});
+
+// The No button can never be clicked — it dodges every attempt.
+(function () {
+  const noBtn = document.getElementById('noBtn');
+  const box = document.getElementById('questionBox');
+  function dodge() {
+    const bw = box.clientWidth, bh = box.clientHeight;
+    const w = noBtn.offsetWidth, h = noBtn.offsetHeight;
+    noBtn.style.transform = 'none';
+    noBtn.style.left = Math.max(0, Math.random() * (bw - w)) + 'px';
+    noBtn.style.top = (100 + Math.random() * Math.max(10, bh - 100 - h)) + 'px';
+  }
+  noBtn.addEventListener('mouseenter', dodge);
+  noBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); dodge(); });
+  noBtn.addEventListener('touchstart', (e) => { e.preventDefault(); dodge(); }, { passive: false });
+  noBtn.addEventListener('click', (e) => { e.preventDefault(); dodge(); });
+})();
+
+/* ================= Main loop ================= */
+const clock = new THREE.Clock();
+function loop() {
+  requestAnimationFrame(loop);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  stepTweens(dt);
+  if (myRole && !cineLock && (phase === 'free1' || phase === 'free2')) updateLocal(dt);
+  if (myRole) updateRemote(dt);
+  checkTriggers();
+  oceanTex.offset.y -= dt * 0.015;
+  oceanTex.offset.x += dt * 0.004;
+  foam.material.opacity = 0.35 + 0.18 * Math.sin(performance.now() * 0.0016);
+  updateCamera(dt);
+  renderer.render(scene, camera);
+}
+connect();
+loop();
+</script>
+</body>
+</html>
